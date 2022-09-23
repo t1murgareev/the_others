@@ -1,0 +1,126 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+using System.IO;
+
+namespace SocketTcpServer
+{
+        class Program
+        {
+            const int port = 8005;
+            
+            static TcpListener listener;
+            static void Main(string[] args)
+            {
+                String Host = Dns.GetHostName();
+                Console.WriteLine("Comp name = " + Host);
+                IPAddress[] IPs;
+                IPs = Dns.GetHostAddresses(Host);
+                foreach (IPAddress ip1 in IPs)
+                    Console.WriteLine(ip1);
+                NetworkStream stream = null;
+                try
+                 {
+                    listener = new TcpListener(IPAddress.Parse("127.0.0.1"), port);
+                    listener.Start();
+                    Console.WriteLine("Ожидание подключений...");
+
+                    while (true)
+                    {
+                        TcpClient client = listener.AcceptTcpClient();
+                        stream = client.GetStream();
+                        byte[] data = new byte[64]; // буфер для получаемых данных
+                    
+                        // получаем сообщение
+                        StringBuilder builder = new StringBuilder();
+                        int bytes = 0;
+                        do
+                        {
+                            bytes = stream.Read(data, 0, data.Length);
+                            builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
+                        }
+                        while (stream.DataAvailable);
+
+                        string name = builder.ToString();
+                        ClientObject clientObject = new ClientObject(client);
+
+                        // создаем новый поток для обслуживания нового клиента
+                        Thread clientThread = new Thread(clientObject.Process);
+                        clientThread.Start(name);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                finally
+                {
+                    if (listener != null)
+                        listener.Stop();
+                }
+            }
+        
+    
+    public class ClientObject
+        {
+            public TcpClient client;
+            public ClientObject(TcpClient tcpClient)
+            {
+                client = tcpClient;
+            }
+
+            public void Process(object name)
+            {
+                NetworkStream stream = null;
+                try
+                {
+                    stream = client.GetStream();
+                    byte[] data = new byte[64]; // буфер для получаемых данных
+                    while (true)
+                    {
+                        // получаем сообщение
+                        StringBuilder builder = new StringBuilder();
+                        int bytes = 0;
+                        do
+                        {
+                            bytes = stream.Read(data, 0, data.Length);
+                            builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
+                        }
+                        while (stream.DataAvailable);
+
+                        string message = name + ":" + builder.ToString();
+                        string quit = builder.ToString();
+                        if (quit == "Конец соединения")
+                        {
+                            data = Encoding.Unicode.GetBytes("Клиент " + name + " отключился");
+                            stream.Write(data, 0, data.Length);
+                            stream.Close();
+                            client.Close();
+                        }
+
+                        Console.WriteLine(message);
+                        // отправляем сообщение
+                        //message = message.Substring(message.IndexOf(':') + 1).Trim().ToUpper();
+                        //data = Encoding.Unicode.GetBytes(message);
+                        //stream.Write(data, 0, data.Length);
+                    }
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine("Клиент " + name + " отключился");
+                }
+                finally
+                {
+                    if (stream != null)
+                        stream.Close();
+                    if (client != null)
+                        client.Close();
+                }
+            }
+        }
+   }
+}
