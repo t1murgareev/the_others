@@ -1,3 +1,2 @@
 # the_others
-
-Here are collected mini projects for the practice of different languages
+I was improving my skill in solving problems in javascript
